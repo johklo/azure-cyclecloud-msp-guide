@@ -1,0 +1,59 @@
+# =============================================================================
+# 실습: NFS 스토리지 계정 마운트 (Blob Storage NFS 3.0 / Azure Files NFS)
+# -----------------------------------------------------------------------------
+# 붙여넣는 위치:
+#   slurm.txt 의  [[node nodearraybase]]  →  [[[configuration]]]  블록의
+#   **일반 속성(slurm.role, slurm.node_prefix 등) 뒤, 첫 [[[cluster-init 앞]]]**.
+#   (모든 execute 노드에 공통 마운트됨. 특정 파티션만 원하면 해당
+#    [[nodearray ...]] 블록 안에 넣으세요.)
+#
+#   ⚠️ [[[configuration]]] 헤더 '바로 뒤'에 넣지 마세요. 마운트 하위 섹션
+#   [[[configuration cyclecloud.mounts.*]]] 이 헤더 직후에 오면, 그 아래 일반
+#   속성(slurm.node_prefix 등)이 마운트 하위 섹션으로 흡수되어 node_prefix 가
+#   사라지고 노드 이름이 test-hpc-* → hpc-* 로 깨집니다(slurm↔CycleCloud 불일치).
+#
+# 반영: import_cluster --force 후, 대상 노드를 재기동(azslurm suspend/resume)
+#       하면 새로 뜬 노드에 마운트됩니다.
+#
+# 사전 조건(스토리지 계정 측):
+#   - Blob NFS 3.0: Standard v2 또는 Premium BlockBlob, "보안 전송 필수" OFF,
+#     계층형 네임스페이스(HNS) 사용, NFS v3 활성화, 컨테이너 생성.
+#   - VNet 접근: ccw-vnet / ccw-compute-subnet 에서 접근 허용(네트워킹 규칙).
+#   - 노드에 nfs 유틸(nfs-utils/nfs-common)이 설치되어 있어야 함.
+# =============================================================================
+
+# ---- (A) Blob Storage NFS 3.0 예시 : storage account = nfsmounttest1 ----
+        [[[configuration cyclecloud.mounts.nfsmounttest1]]]
+        type = nfs
+        address = nfsmounttest1.blob.core.windows.net
+        mountpoint = /nfsdata
+        # export_path = /<스토리지계정명>/<컨테이너명>
+        export_path = /nfsmounttest1/data
+        # Blob NFS 3.0 필수 옵션
+        options = vers=3,proto=tcp,nolock,sec=sys
+
+# ---- (B) Azure Files NFS 4.1 예시 (세미나 랩 data1/data2) ----
+#   사전 조건: Premium FileStorage 계정, 보안 전송(EiT) OFF, NFS 쉐어(data1/data2),
+#             Private Endpoint + Private DNS(privatelink.file.core.windows.net) 구성.
+#   <account> 를 각 랩의 NFS 계정명으로 교체하세요 (예: lab1nfshafh3a).
+        [[[configuration cyclecloud.mounts.data1]]]
+        type = nfs
+        address = <account>.file.core.windows.net
+        mountpoint = /mnt/data1
+        export_path = /<account>/data1
+        options = vers=4,minorversion=1,sec=sys
+
+        [[[configuration cyclecloud.mounts.data2]]]
+        type = nfs
+        address = <account>.file.core.windows.net
+        mountpoint = /mnt/data2
+        export_path = /<account>/data2
+        options = vers=4,minorversion=1,sec=sys
+
+# ---- (C) 외부 NFS 서버 / NetApp Files 예시 (참고) ----
+#       [[[configuration cyclecloud.mounts.extnfs]]]
+#       type = nfs
+#       address = 10.0.0.100
+#       mountpoint = /extdata
+#       export_path = /export/data
+#       options = rw,hard,rsize=1048576,wsize=1048576

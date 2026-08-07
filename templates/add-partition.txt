@@ -1,0 +1,79 @@
+# =============================================================================
+# 실습: 신규 파티션(nodearray) 추가 — 템플릿 기반(영구)
+# -----------------------------------------------------------------------------
+# 현재 형상(Slurm 프로젝트 3.0.x)에서 실제로 검증된 XPU 파티션 구조를 기준으로
+# 작성했습니다. 새 파티션 이름에 맞게 아래 "XPU" / "xpu" 를 원하는 이름으로
+# 일괄 치환해서 사용하세요. (예: GPU, AI, BIGMEM ...)
+#
+# 이 조각은 slurm.txt 의 "서로 다른 4곳"에 나눠 붙여넣습니다.
+#   (1) nodearray 정의   : [[nodearray htc]] / [[nodearray dynamic]] 근처
+#   (2) VM 타입 파라미터   : [[[parameter HTCMachineType]]] 근처
+#   (3) 최대 노드 수 파라미터: [[[parameter MaxHTCExecuteNodeCount]]] 근처
+#   (4) OS 이미지 파라미터   : [[[parameter HTCImageName]]] 근처
+#   (5) Cluster-Init 파라미터: [[[parameter HTCClusterInitSpecs]]] 근처
+#
+# 반영: export_parameters → import_cluster --force → cyclecloud start_cluster
+#       → 스케줄러에서  sudo -i; azslurm scale ;  sinfo 로 확인.
+#
+# 주의:
+#   - slurm.default_partition 은 클러스터 전체에서 정확히 1개만 true 여야 합니다.
+#     새 파티션을 기본으로 하지 않으려면 아래 true 를 false 로 바꾸세요.
+#   - InfiniBand/긴밀결합이면 slurm.hpc = true, throughput 이면 false + use_pcpu=false.
+# =============================================================================
+
+
+# ---- (1) nodearray 정의 : nodearray 영역(예: [[nodearray htc]] 아래)에 삽입 ----
+
+    [[nodearray XPU]]
+    Extends = nodearraybase
+    MachineType = $XPUMachineType
+    ImageName = $XPUImageName
+    MaxCount = $MaxXPUExecuteNodeCount
+    Zone = ${ifThenElse(DefineNodesAvailabilityZone, HPCAvailabilityZone, undefined)}
+    Azure.MaxScalesetSize = $HPCMaxScalesetSize
+    AdditionalClusterInitSpecs = $XPUClusterInitSpecs
+    EnableNodeHealthChecks = $EnableNodeHealthChecks
+
+        [[[configuration]]]
+        slurm.default_partition = true
+        slurm.hpc = true
+        slurm.partition = xpu
+
+
+# ---- (2) VM 타입 파라미터 : [[[parameter HTCMachineType]]] 근처에 삽입 ----
+
+        [[[parameter XPUMachineType]]]
+        Label = XPU VM Type
+        Description = The VM type for XPU execute nodes
+        ParameterType = Cloud.MachineType
+        DefaultValue = Standard_D2s_v5
+
+
+# ---- (3) 최대 노드 수 파라미터 : [[[parameter MaxHTCExecuteNodeCount]]] 근처에 삽입 ----
+
+        [[[parameter MaxXPUExecuteNodeCount]]]
+        Label = Max XPU Nodes
+        Description = The total number of XPU execute nodes to start
+        DefaultValue = 16
+        Config.Plugin = pico.form.NumberTextBox
+        Config.MinValue = 0
+        Config.IntegerOnly = true
+
+
+# ---- (4) OS 이미지 파라미터 : [[[parameter HTCImageName]]] 근처에 삽입 ----
+
+        [[[parameter XPUImageName]]]
+        Label = XPU OS
+        ParameterType = Cloud.Image
+        Config.OS = linux
+        DefaultValue = cycle.image.ubuntu22
+        Config.Filter := Package in {"cycle.image.ubuntu24", "cycle.image.ubuntu22", "cycle.image.sles15-hpc", "almalinux8", "almalinux9"}
+
+
+# ---- (5) Cluster-Init 파라미터 : [[[parameter HTCClusterInitSpecs]]] 근처에 삽입 ----
+
+        [[[parameter XPUClusterInitSpecs]]]
+        Label = XPU Cluster-Init
+        DefaultValue = =undefined
+        Description = Cluster init specs to apply to XPU execute nodes
+        ParameterType = Cloud.ClusterInitSpecs

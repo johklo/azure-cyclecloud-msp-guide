@@ -1,0 +1,61 @@
+# =============================================================================
+# 실습: 디스크 생성 + 마운트 (통합)
+# -----------------------------------------------------------------------------
+# CycleCloud 템플릿에서 디스크는 "volume 블록(생성/attach)" 과
+# "mount 설정(포맷/마운트)" 이 한 쌍으로 동작합니다. 이 파일 하나로
+# 생성 + 마운트를 모두 처리합니다.
+#
+# 붙여넣는 위치:
+#   slurm.txt 의  [[node nodearraybase]]  블록 하위 —
+#   **일반 [[[configuration]]] 속성(slurm.node_prefix 등) 뒤, 첫 [[[cluster-init 앞]]]**.
+#   (기존 [[[volume boot]]] 블록과 같은 들여쓰기 레벨. 모든 execute 노드에 공통 적용.
+#    특정 파티션만 원하면 해당 [[nodearray ...]] 블록 안에 넣으세요.)
+#
+#   ⚠️ [[[configuration]]] 헤더 '바로 뒤'에 volume/mount 하위 섹션을 넣으면 그 아래
+#   일반 속성(slurm.node_prefix 등)이 하위 섹션으로 흡수되어 노드 이름이
+#   test-hpc-* → hpc-* 로 깨집니다(slurm↔CycleCloud 불일치).
+#
+# 반영: export_parameters → import_cluster --force 후,
+#       대상 노드를 재기동(azslurm suspend/resume)하면 새로 뜬 노드에
+#       디스크가 attach·(포맷)·마운트됩니다.
+#       ※ 이미 실행 중인 노드에는 소급 적용되지 않습니다(재기동 필요).
+#
+# 두 가지 시나리오 중 하나를 선택하세요.
+#   [A] 신규 디스크 생성   : 노드마다 새 관리 디스크를 만들어 붙임 (기본)
+#   [B] 기존 디스크 마운트 : 이미 만들어 둔 관리 디스크를 VolumeId 로 붙임
+# =============================================================================
+
+
+# =========================== [A] 신규 디스크 생성 + 마운트 ===================
+#   Persistent = true  → 노드 종료 시에도 디스크 유지(클러스터 삭제 시 삭제).
+#                        기본(false)이면 노드 terminate 시 디스크도 삭제.
+#   노드마다 개별 디스크가 생성됩니다(공유 아님). 공유가 필요하면 NFS 사용.
+
+        [[[volume datadisk]]]
+        Size = 128
+        SSD = True
+        Mount = datadisk
+        Persistent = true
+        # StorageAccountType = Premium_LRS   # 선택: Standard_LRS / StandardSSD_LRS / Premium_LRS
+        # Azure.LUN = 1                       # 선택: LUN 수동 지정
+
+        [[[configuration cyclecloud.mounts.datadisk]]]
+        mountpoint = /data
+        fs_type = xfs                          # ext4 / xfs 등
+
+
+# =========================== [B] 기존 디스크 attach + 마운트 =================
+#   (위 [A] 대신 사용. 둘 다 넣지 마세요.)
+#   관리 디스크는 동시에 한 노드에만 attach 되므로, 보통 단일 노드
+#   ([[node ...]]) 또는 노드 1개짜리 nodearray 에 사용합니다. 여러 노드가
+#   같은 디스크를 붙이려 하면 attach 충돌이 납니다.
+#   VolumeId 는 대상 디스크의 전체 리소스 ID 로 교체하세요.
+
+#       [[[volume existingdisk]]]
+#       VolumeId = /subscriptions/c4b3d397-1f58-4936-8649-fb329a895133/resourceGroups/cycle2/providers/Microsoft.Compute/disks/mydatadisk
+#       Mount = existingdisk
+#       Persistent = true
+#
+#       [[[configuration cyclecloud.mounts.existingdisk]]]
+#       mountpoint = /data
+#       fs_type = xfs
