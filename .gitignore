@@ -1,0 +1,39 @@
+# SSH keys / secrets — do not commit
+keys/
+*.pem
+*.key
+cyclecloud_rsa*
+cc_key*
+cc_admin*
+
+# Live lab environment guides (contain shared credentials) — local only
+labs/
+
+# Bicep build artifacts
+infra/*.json
+!infra/main.parameters.json
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Office temp lock files
+~$*
+
+# Doc editing intermediates (regenerated from docs/*.md)
+docs/docx/
+
+# PowerPoint decks — kept locally, not tracked in repo
+*.pptx
+*.ppt
+
+# Python build/generation scripts — kept locally, not tracked in repo
+*.py
+__pycache__/
+
+# Public repo 동기화 헬퍼 — 로컬 전용
+sync-public.ps1
+
+# 느슨한 원본 스크린샷 — 로컬 보관, 저장소 미추적 (images/ 아래 정식 이미지만 추적)
+docs/Screenshot*.png
+docs/u5-*.png
