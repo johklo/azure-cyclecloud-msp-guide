@@ -135,4 +135,4 @@ done <<< "$NODES"
 wait
 
 echo "---"
-echo "완료. 멱등이므로 다시 실행해도 안전하다."
+echo "완료."
