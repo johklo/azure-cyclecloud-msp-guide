@@ -117,42 +117,6 @@ NFS 마운트를 추가하는 절차는 **"어떤 상황에서 추가하는가"*
    mountpoint /mnt/<공유명> && df -h /mnt/<공유명>
    ```
 
-②-B. 템플릿(`slurm.txt`)
-
-1. ☁️ **[CC 서버]** 템플릿 원본 받기. 내장 템플릿(`/opt/cycle_server/...`)은 **root 전용**이라 SSH 사용자가 `cp` 하면 *Permission denied*가 발생하므로 저장소에서 **배포 버전과 동일한 태그**로 받는다.
-   ```bash
-   sudo find /opt/cycle_server -name 'slurm_template_*.txt' 2>/dev/null | head -1   # 배포 버전 확인(예: 4.0.9)
-   git clone https://github.com/Azure/cyclecloud-slurm.git ~/cyclecloud-slurm
-   cd ~/cyclecloud-slurm && git checkout 4.0.9 && cp templates/slurm.txt ~/slurm.txt && cd ~
-   ```
-2. ☁️ **[CC 서버]** `[[node nodearraybase]]` → `[[[configuration]]]` 의 **일반 속성 뒤, 첫 `[[[cluster-init` 앞**에 마운트 선언 추가.
-   ```ini
-   [[node nodearraybase]]
-       [[[configuration]]]
-       slurm.role = ...            # 기존 일반 속성 (그대로 둠)
-       slurm.node_prefix = ...
-       # ↓ 일반 속성 뒤에 마운트 선언 추가
-
-       [[[configuration cyclecloud.mounts.<공유명>]]]
-       type = nfs
-       address = <스토리지계정>.file.core.windows.net   # 외부/Azure Files NFS는 필수
-       export_path = /<스토리지계정>/<공유명>            # 서버(export) 경로
-       mountpoint = /mnt/<공유명>                       # 노드 마운트 경로
-       options = vers=4,minorversion=1,sec=sys
-
-       [[[cluster-init ...]]]     # 기존 cluster-init (마운트 선언 뒤에 위치)
-   ```
-   > 📋 바로 붙여넣을 예시 조각: [`templates/add-nfs-mount.txt`](../templates/add-nfs-mount.txt) — `(A) Blob Storage NFS 3.0`, `(B) Azure Files NFS`, `(C) 외부 NFS/NetApp`.
-3. ☁️ **[CC 서버]** 현재 파라미터를 백업한 뒤 재적용(설정 유지).
-   ```bash
-   cyclecloud export_parameters <클러스터명> -o ~/params.json
-   cyclecloud import_cluster <클러스터명> -c Slurm -f ~/slurm.txt -p ~/params.json --force
-   grep -A6 "cyclecloud.mounts.<공유명>" ~/slurm.txt   # 삽입 확인
-   ```
-4. 🧮 **[스케줄러]** 실행 중 노드 재생성(②-A 2단계와 동일).
-5. 🧮 **[노드]** 검증(②-A 3단계와 동일).
-   
-
 **②-C. cluster-init (스크립트 기반)**
 
 1. ☁️ **[CC 서버]** 프로젝트 `specs/default/cluster-init/scripts/` 에 마운트 스크립트 작성. **마운트에 필요한 작업만** 넣는다 — NFS 클라이언트(`nfs-utils`/`nfs-common`)는 CycleCloud HPC 이미지에 기본 포함되어 있어, converge 중 패키지 설치는 저장소 접근 실패·패키지 매니저 락 등 실패 지점만 늘린다.
